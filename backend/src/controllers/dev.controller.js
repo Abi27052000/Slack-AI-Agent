@@ -3,6 +3,9 @@ import { AppError } from '../lib/errors.js';
 import { slackEventHandlers } from '../integrations/slack/index.js';
 import { researchMember } from '../services/research.service.js';
 import { analyzeMember } from '../services/analysis.service.js';
+import { getAnalysisWithMember } from '../services/analysis.repository.js';
+import { buildMemberReport } from '../integrations/slack/blocks.js';
+import config from '../config/index.js';
 
 function parseOrThrow(schema, body, message) {
   const parsed = schema.safeParse(body);
@@ -85,4 +88,24 @@ export const runAnalysis = async (req, res) => {
   const research = providedResearch ?? (await researchMember(member));
   const analysis = await analyzeMember(member, research);
   res.status(200).json({ research, analysis });
+};
+
+/**
+ * GET /api/dev/analyses/:id: a stored analysis plus the Slack report it produces, with a link
+ * that opens the report in Slack's Block Kit Builder (no workspace connection needed to preview).
+ */
+export const getAnalysisPreview = async (req, res) => {
+  const record = await getAnalysisWithMember(req.params.id);
+  if (!record) throw AppError.notFound(`Analysis ${req.params.id} not found`);
+
+  const { member, ...analysis } = record;
+  const report = buildMemberReport({ member, analysis, dashboardUrl: config.pipeline.dashboardUrl });
+  const builderPayload = { blocks: report.attachments[0].blocks };
+
+  res.status(200).json({
+    analysis,
+    member,
+    report,
+    blockKitBuilderUrl: `https://app.slack.com/block-kit-builder#${encodeURIComponent(JSON.stringify(builderPayload))}`,
+  });
 };

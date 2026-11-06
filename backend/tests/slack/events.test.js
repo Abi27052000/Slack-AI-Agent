@@ -16,7 +16,7 @@ beforeEach(() => {
     fetchUserProfile: vi.fn(async (userId) => toMemberProfile(slackUser({ id: userId }))),
     watchChannelIds: [WATCHED],
     getBotUserId: () => BOT_ID,
-    onMemberJoined: vi.fn(async () => {}),
+    onMemberJoined: vi.fn(async () => ({ status: 'queued', analysisId: 'a1' })),
     logger: pino({ level: 'silent' }),
   };
   handlers = createEventHandlers(deps);
@@ -26,7 +26,12 @@ describe('onTeamJoin', () => {
   it('upserts the member from the event payload without calling users.info', async () => {
     const result = await handlers.onTeamJoin({ type: 'team_join', user: slackUser() });
 
-    expect(result).toEqual({ status: 'processed', memberId: 'member-U012ABC', trigger: 'team_join' });
+    expect(result).toEqual({
+      status: 'processed',
+      memberId: 'member-U012ABC',
+      trigger: 'team_join',
+      analysis: { status: 'queued', analysisId: 'a1' },
+    });
     expect(deps.fetchUserProfile).not.toHaveBeenCalled();
     expect(deps.upsertMember).toHaveBeenCalledWith(
       expect.objectContaining({ slackUserId: 'U012ABC', email: 'jane@acme.io' }),

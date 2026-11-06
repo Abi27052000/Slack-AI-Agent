@@ -18,7 +18,15 @@ describe('parseEnv', () => {
       GEMINI_MAX_RETRIES: 3,
       COMPANY_NAME: 'Your Company',
       COMPANY_PRODUCT: 'Your Product',
+      REANALYZE_COOLDOWN_DAYS: 30,
+      PIPELINE_CONCURRENCY: 2,
     });
+  });
+
+  it('validates pipeline settings', () => {
+    expect(parseEnv({ DATABASE_URL, DASHBOARD_URL: 'http://localhost:5173' }).DASHBOARD_URL).toBe('http://localhost:5173');
+    expect(() => parseEnv({ DATABASE_URL, DASHBOARD_URL: 'not a url' })).toThrow(/DASHBOARD_URL/);
+    expect(() => parseEnv({ DATABASE_URL, PIPELINE_CONCURRENCY: '0' })).toThrow(/PIPELINE_CONCURRENCY/);
   });
 
   it('coerces and parses values', () => {

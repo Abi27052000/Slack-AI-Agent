@@ -5,14 +5,14 @@ import { toMemberProfile } from './profile.js';
  * unit-tested and driven by the dev simulation endpoint without a real Slack connection.
  *
  * Each handler resolves to a result object describing what happened:
- *   { status: 'processed', memberId, trigger } | { status: 'skipped', reason }
+ *   { status: 'processed', memberId, trigger, analysis? } | { status: 'skipped', reason }
  *
  * @param {object} deps
  * @param {(profile) => Promise<{id: string}>} deps.upsertMember   persist the member
  * @param {(userId: string) => Promise<object>} deps.fetchUserProfile  users.info lookup
  * @param {string[]} deps.watchChannelIds   channels whose joins we react to
  * @param {() => string|null} deps.getBotUserId  the agent's own Slack user id
- * @param {(ctx) => Promise<void>} [deps.onMemberJoined]  hook for the analysis pipeline (step 6)
+ * @param {(ctx) => Promise<object>} [deps.onMemberJoined]  hands the member to the analysis pipeline
  * @param {import('pino').Logger} deps.logger
  */
 export function createEventHandlers({
@@ -45,11 +45,12 @@ export function createEventHandlers({
       `Member joined: ${profile.name}`,
     );
 
+    const result = { status: 'processed', memberId: member.id, trigger: context.trigger };
     if (onMemberJoined) {
-      await onMemberJoined({ member, ...context });
+      // e.g. { status: 'queued', analysisId } or { status: 'skipped', reason: 'recently_analyzed' }
+      result.analysis = (await onMemberJoined({ member, ...context })) ?? null;
     }
-
-    return { status: 'processed', memberId: member.id, trigger: context.trigger };
+    return result;
   }
 
   /** `team_join`: someone joined the workspace. The payload already contains the full user. */

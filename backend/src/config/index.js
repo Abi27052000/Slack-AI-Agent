@@ -47,6 +47,11 @@ const config = Object.freeze({
     timeoutMs: env.GEMINI_TIMEOUT_MS,
     maxRetries: env.GEMINI_MAX_RETRIES,
   }),
+  pipeline: Object.freeze({
+    cooldownDays: env.REANALYZE_COOLDOWN_DAYS,
+    concurrency: env.PIPELINE_CONCURRENCY,
+    dashboardUrl: env.DASHBOARD_URL?.replace(/\/+$/, ''),
+  }),
   company: Object.freeze({
     name: env.COMPANY_NAME,
     product: env.COMPANY_PRODUCT,

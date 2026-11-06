@@ -37,7 +37,7 @@ Open a channel → click its name → the **Channel ID** (`C…`) is at the bott
 
 - `SLACK_WATCH_CHANNEL_IDS=C0123WELCOME`: joins to these channels trigger the agent (comma-separated).
   Leave empty to react to new workspace members (`team_join`) only.
-- `SLACK_REPORT_CHANNEL_ID=C0456REPORTS`: where reports go (used from the analysis pipeline step).
+- `SLACK_REPORT_CHANNEL_ID=C0456REPORTS`: where reports are posted. Leave empty to store analyses without posting.
 
 **Invite the bot** to every channel above: in the channel, type `/invite @AI Slack Agent`.
 Slack only sends `member_joined_channel` for channels the bot is in.
@@ -80,6 +80,16 @@ curl -X POST http://localhost:5000/api/dev/slack/events \
 
 `member_joined_channel` needs a live Slack connection (it looks the user up via `users.info`), so without
 Slack, only unwatched-channel skips can be simulated.
+
+The response contains `analysis.analysisId`. Once the analysis finishes (about 10s), preview the Slack
+report it would post:
+
+```bash
+curl http://localhost:5000/api/dev/analyses/<analysisId>
+```
+
+Open the returned `blockKitBuilderUrl` in a browser to see the report rendered by Slack's Block Kit Builder
+(sign-in to any Slack workspace may be required).
 
 ## Troubleshooting
 

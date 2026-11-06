@@ -5,8 +5,11 @@ import { getShutdownHooks, onShutdown, registerReadinessCheck } from './lib/life
 import { checkDatabase, connectDatabase, disconnectDatabase } from './lib/prisma.js';
 import { isSlackConnected, startSlack, stopSlack } from './integrations/slack/index.js';
 import { verifyGeminiModel } from './integrations/gemini/client.js';
+import { pipeline } from './services/pipeline.service.js';
 
-const SHUTDOWN_TIMEOUT_MS = 10_000;
+// Hosting platforms (e.g. Render) allow ~30s between SIGTERM and SIGKILL.
+const SHUTDOWN_TIMEOUT_MS = 25_000;
+const PIPELINE_DRAIN_TIMEOUT_MS = 15_000;
 
 let server;
 let shuttingDown = false;
@@ -39,9 +42,18 @@ async function start() {
   const slackStarted = await startSlack();
   if (slackStarted) {
     registerReadinessCheck('slack', isSlackConnected);
-    // Hooks run in registration order: stop taking Slack events before closing the DB.
-    onShutdown('slack', stopSlack);
   }
+
+  // Analyses a previous process left half-done (deploy, crash) are picked up again.
+  await pipeline.recoverInterrupted();
+
+  // Hooks run in registration order: stop taking Slack events, let running analyses finish,
+  // then close the database.
+  if (slackStarted) onShutdown('slack', stopSlack);
+  onShutdown('pipeline', async () => {
+    const finished = await pipeline.drain(PIPELINE_DRAIN_TIMEOUT_MS);
+    if (!finished) logger.warn('Some analyses were still running; they will resume on next start');
+  });
   onShutdown('database', disconnectDatabase);
 
   server = app.listen(config.port, () => {
