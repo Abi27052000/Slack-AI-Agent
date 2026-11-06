@@ -3,6 +3,7 @@ import config from './config/index.js';
 import logger from './lib/logger.js';
 import { getShutdownHooks, onShutdown, registerReadinessCheck } from './lib/lifecycle.js';
 import { checkDatabase, connectDatabase, disconnectDatabase } from './lib/prisma.js';
+import { isSlackConnected, startSlack, stopSlack } from './integrations/slack/index.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -13,6 +14,13 @@ async function start() {
   // Dependencies first, so we never accept traffic we can't serve.
   await connectDatabase();
   registerReadinessCheck('database', checkDatabase);
+
+  const slackStarted = await startSlack();
+  if (slackStarted) {
+    registerReadinessCheck('slack', isSlackConnected);
+    // Hooks run in registration order: stop taking Slack events before closing the DB.
+    onShutdown('slack', stopSlack);
+  }
   onShutdown('database', disconnectDatabase);
 
   server = app.listen(config.port, () => {

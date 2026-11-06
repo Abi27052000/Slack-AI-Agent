@@ -23,9 +23,12 @@ function normalizeError(err) {
 export const errorHandler = (err, req, res, next) => {
   const known = normalizeError(err);
   const status = known?.status ?? 500;
-  // 4xx responses are already logged (as warn) by the request logger; only 5xx need the error detail.
-  if (status >= 500) {
+  // 4xx responses are already logged (as warn) by the request logger. Unexpected errors get the
+  // full error + stack; intentional 5xx AppErrors (e.g. 503 SLACK_DISABLED) just a message.
+  if (!known) {
     (req.log ?? logger).error({ err }, 'Unhandled error');
+  } else if (status >= 500) {
+    (req.log ?? logger).warn(`${known.code}: ${known.message}`);
   }
 
   res.status(status).json({
@@ -34,7 +37,7 @@ export const errorHandler = (err, req, res, next) => {
       message: known?.message ?? 'Internal Server Error',
       ...(known?.details && { details: known.details }),
       ...(req.id && { requestId: req.id }),
-      ...(config.isDev && status >= 500 && { stack: err.stack }),
+      ...(config.isDev && !known && { stack: err.stack }),
     },
   });
 };

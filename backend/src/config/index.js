@@ -28,6 +28,14 @@ const config = Object.freeze({
     url: env.DATABASE_URL,
     poolMax: env.DATABASE_POOL_MAX,
   }),
+  slack: Object.freeze({
+    enabled: Boolean(env.SLACK_BOT_TOKEN && env.SLACK_APP_TOKEN),
+    botToken: env.SLACK_BOT_TOKEN,
+    appToken: env.SLACK_APP_TOKEN,
+    signingSecret: env.SLACK_SIGNING_SECRET,
+    watchChannelIds: Object.freeze(env.SLACK_WATCH_CHANNEL_IDS),
+    reportChannelId: env.SLACK_REPORT_CHANNEL_ID,
+  }),
   appName: pkg.name,
   appVersion: pkg.version,
 });
