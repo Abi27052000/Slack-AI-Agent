@@ -19,7 +19,7 @@ function createFakeRepo() {
         .filter((r) => r.memberId === memberId)
         .filter(
           (r) =>
-            (['ANALYZED', 'POSTED'].includes(r.status) && !r.isFallback && r.createdAt >= cooldownSince) ||
+            (cooldownSince && ['ANALYZED', 'POSTED'].includes(r.status) && !r.isFallback && r.createdAt >= cooldownSince) ||
             (IN_FLIGHT.includes(r.status) && r.createdAt >= inFlightSince),
         )
         .sort((a, b) => b.createdAt - a.createdAt)[0] ?? null,
@@ -213,6 +213,16 @@ describe('pipeline: duplicate protection', () => {
     await pipeline.onIdle();
 
     expect((await pipeline.enqueue({ member, trigger: 'manual', force: true })).status).toBe('queued');
+  });
+
+  it('never runs two analyses for a member at once, even when forced', async () => {
+    const pipeline = makePipeline();
+    const first = await pipeline.enqueue({ member, trigger: 'manual', force: true });
+    const second = await pipeline.enqueue({ member, trigger: 'manual', force: true });
+
+    expect(second).toEqual({ status: 'skipped', reason: 'analysis_in_progress', analysisId: first.analysisId });
+    await pipeline.onIdle();
+    expect(deps.research).toHaveBeenCalledTimes(1);
   });
 });
 
