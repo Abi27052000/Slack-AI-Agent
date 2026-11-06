@@ -12,6 +12,12 @@ describe('parseEnv', () => {
       DATABASE_URL,
       DATABASE_POOL_MAX: 10,
       SLACK_WATCH_CHANNEL_IDS: [],
+      RESEARCH_TIMEOUT_MS: 8000,
+      GEMINI_MODEL: 'gemini-3.6-flash',
+      GEMINI_TIMEOUT_MS: 30000,
+      GEMINI_MAX_RETRIES: 3,
+      COMPANY_NAME: 'Your Company',
+      COMPANY_PRODUCT: 'Your Product',
     });
   });
 
@@ -25,9 +31,12 @@ describe('parseEnv', () => {
       DATABASE_POOL_MAX: '25',
       SLACK_BOT_TOKEN: 'xoxb-1',
       SLACK_APP_TOKEN: 'xapp-1',
+      GEMINI_API_KEY: 'key',
+      GEMINI_MAX_RETRIES: '1',
     });
 
     expect(env).toMatchObject({
+      GEMINI_MAX_RETRIES: 1,
       NODE_ENV: 'production',
       PORT: 8080,
       LOG_LEVEL: 'warn',
@@ -81,7 +90,26 @@ describe('parseEnv', () => {
       expect(() => parseEnv({ DATABASE_URL, NODE_ENV: 'production' })).toThrow(
         /Slack tokens are required in production/,
       );
-      expect(() => parseEnv({ DATABASE_URL, NODE_ENV: 'production', ...tokens })).not.toThrow();
+      expect(() =>
+        parseEnv({ DATABASE_URL, NODE_ENV: 'production', GEMINI_API_KEY: 'key', ...tokens }),
+      ).not.toThrow();
+    });
+  });
+
+  describe('Gemini', () => {
+    it('is optional outside production', () => {
+      expect(parseEnv({ DATABASE_URL }).GEMINI_API_KEY).toBeUndefined();
+    });
+
+    it('is required in production', () => {
+      expect(() =>
+        parseEnv({ DATABASE_URL, NODE_ENV: 'production', SLACK_BOT_TOKEN: 'xoxb-1', SLACK_APP_TOKEN: 'xapp-1' }),
+      ).toThrow(/GEMINI_API_KEY: GEMINI_API_KEY is required in production/);
+    });
+
+    it('bounds retries and timeouts', () => {
+      expect(() => parseEnv({ DATABASE_URL, GEMINI_MAX_RETRIES: '50' })).toThrow(/GEMINI_MAX_RETRIES/);
+      expect(() => parseEnv({ DATABASE_URL, GEMINI_TIMEOUT_MS: '10' })).toThrow(/GEMINI_TIMEOUT_MS/);
     });
   });
 

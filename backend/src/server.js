@@ -4,16 +4,37 @@ import logger from './lib/logger.js';
 import { getShutdownHooks, onShutdown, registerReadinessCheck } from './lib/lifecycle.js';
 import { checkDatabase, connectDatabase, disconnectDatabase } from './lib/prisma.js';
 import { isSlackConnected, startSlack, stopSlack } from './integrations/slack/index.js';
+import { verifyGeminiModel } from './integrations/gemini/client.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 let server;
 let shuttingDown = false;
 
+/**
+ * Bad key / unknown model: fail fast. Network hiccup: warn and carry on (analyses fall back and
+ * can be re-run). No key: allowed outside production, every analysis becomes a fallback.
+ */
+async function checkGemini() {
+  if (!config.gemini.enabled) {
+    logger.warn('Gemini disabled (GEMINI_API_KEY not set): analyses will be stored as fallbacks needing manual review');
+    return;
+  }
+  try {
+    const { displayName } = await verifyGeminiModel();
+    logger.info(`Gemini ready: ${config.gemini.model} (${displayName})`);
+  } catch (err) {
+    if (err.fatal) throw err;
+    logger.warn(`Could not verify Gemini model at startup: ${err.message}`);
+  }
+}
+
 async function start() {
   // Dependencies first, so we never accept traffic we can't serve.
   await connectDatabase();
   registerReadinessCheck('database', checkDatabase);
+
+  await checkGemini();
 
   const slackStarted = await startSlack();
   if (slackStarted) {
