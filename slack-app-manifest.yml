@@ -1,0 +1,27 @@
+# Slack app manifest for the AI Slack Agent.
+# Use it at https://api.slack.com/apps → "Create New App" → "From a manifest" (see docs/slack-app-setup.md).
+display_information:
+  name: AI Slack Agent
+  description: Researches new community members and scores their fit for your product.
+  background_color: "#1d1c1d"
+features:
+  bot_user:
+    display_name: AI Slack Agent
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - users:read # profile lookups (users.info) and the team_join event
+      - users:read.email # include the member's email in the profile
+      - channels:read # the member_joined_channel event for public channels
+      - chat:write # post analysis reports
+settings:
+  event_subscriptions:
+    bot_events:
+      - team_join
+      - member_joined_channel
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false
