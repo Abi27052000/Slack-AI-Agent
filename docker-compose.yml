@@ -1,0 +1,23 @@
+# Local development services. Start with: docker compose up -d
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: slack-agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: slack_agent
+      POSTGRES_PASSWORD: slack_agent
+      POSTGRES_DB: slack_agent
+    # Host port 5435 avoids clashing with a locally installed Postgres (5432) or other projects' containers.
+    ports:
+      - '5435:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U slack_agent -d slack_agent']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

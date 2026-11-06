@@ -1,0 +1,89 @@
+// Prisma schema for the AI Slack Agent.
+// After editing: `npm run db:migrate -- --name <change>` (creates a migration + regenerates the client).
+
+generator client {
+  // JS client (generated into node_modules/@prisma/client) — the backend is plain JavaScript.
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Lifecycle of a single member analysis run.
+enum AnalysisStatus {
+  PENDING // created, waiting in the queue
+  RESEARCHING // gathering public info (company site, GitHub, ...)
+  ANALYZING // waiting on the LLM
+  ANALYZED // result stored, not yet posted to Slack
+  POSTED // report posted to the Slack channel
+  FAILED // gave up; see `error`
+}
+
+/// Coarse bucket derived from fitScore, used for filtering and report colours.
+enum FitTier {
+  HOT // 80-100
+  WARM // 60-79
+  COOL // 40-59
+  COLD // 0-39
+}
+
+/// A Slack workspace member the agent has seen.
+model Member {
+  id          String   @id @default(cuid())
+  slackUserId String   @unique @map("slack_user_id")
+  slackTeamId String?  @map("slack_team_id")
+  name        String
+  username    String?
+  email       String?
+  title       String?
+  timezone    String?
+  avatarUrl   String?  @map("avatar_url")
+  isBot       Boolean  @default(false) @map("is_bot")
+  /// Raw Slack profile payload, kept for debugging / future fields.
+  profile     Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  analyses MemberAnalysis[]
+
+  @@index([email])
+  @@map("members")
+}
+
+/// One analysis run for a member (a member can be re-analysed over time).
+model MemberAnalysis {
+  id       String         @id @default(cuid())
+  memberId String         @map("member_id")
+  member   Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  status   AnalysisStatus @default(PENDING)
+  /// What triggered this run, e.g. "team_join", "member_joined_channel", "manual", "dev".
+  trigger  String         @default("team_join")
+
+  fitScore        Int?     @map("fit_score")
+  tier            FitTier?
+  summary         String?
+  insights        Json?    @default("[]")
+  recommendations Json?    @default("[]")
+  researchData    Json?    @default("[]") @map("research_data")
+  /// True when the LLM failed and a fallback result was stored (needs manual review).
+  isFallback      Boolean  @default(false) @map("is_fallback")
+
+  model         String? // LLM model id used
+  promptVersion String? @map("prompt_version")
+  error         String?
+  attempts      Int     @default(0)
+
+  slackChannelId String?   @map("slack_channel_id")
+  slackMessageTs String?   @map("slack_message_ts")
+  postedAt       DateTime? @map("posted_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([memberId, createdAt(sort: Desc)])
+  @@index([status])
+  @@index([fitScore])
+  @@index([createdAt(sort: Desc)])
+  @@map("member_analyses")
+}

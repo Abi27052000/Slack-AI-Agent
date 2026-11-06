@@ -1,20 +1,29 @@
 import app from './app.js';
 import config from './config/index.js';
 import logger from './lib/logger.js';
-import { getShutdownHooks } from './lib/lifecycle.js';
+import { getShutdownHooks, onShutdown, registerReadinessCheck } from './lib/lifecycle.js';
+import { checkDatabase, connectDatabase, disconnectDatabase } from './lib/prisma.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-const server = app.listen(config.port, () => {
-  logger.info(`Server running on http://localhost:${config.port} (${config.env})`);
-});
-
-server.on('error', (err) => {
-  logger.fatal({ err }, 'Failed to start HTTP server');
-  process.exit(1);
-});
-
+let server;
 let shuttingDown = false;
+
+async function start() {
+  // Dependencies first, so we never accept traffic we can't serve.
+  await connectDatabase();
+  registerReadinessCheck('database', checkDatabase);
+  onShutdown('database', disconnectDatabase);
+
+  server = app.listen(config.port, () => {
+    logger.info(`Server running on http://localhost:${config.port} (${config.env})`);
+  });
+
+  server.on('error', (err) => {
+    logger.fatal({ err }, 'Failed to start HTTP server');
+    process.exit(1);
+  });
+}
 
 async function shutdown(signal) {
   if (shuttingDown) return;
@@ -28,7 +37,9 @@ async function shutdown(signal) {
   forceExit.unref();
 
   try {
-    await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    if (server) {
+      await new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+    }
     for (const { name, fn } of getShutdownHooks()) {
       await fn();
       logger.info(`Closed ${name}`);
@@ -50,5 +61,10 @@ process.on('unhandledRejection', (reason) => {
 
 process.on('uncaughtException', (err) => {
   logger.fatal({ err }, 'Uncaught exception');
+  process.exit(1);
+});
+
+start().catch((err) => {
+  logger.fatal(`Startup failed: ${err.message}`);
   process.exit(1);
 });

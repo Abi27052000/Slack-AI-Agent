@@ -16,6 +16,12 @@ export const envSchema = z.object({
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .optional(),
   CORS_ORIGIN: commaSeparatedList.default(['http://localhost:5173']),
+
+  // Database
+  DATABASE_URL: z
+    .string({ error: 'DATABASE_URL is required (see .env.example)' })
+    .regex(/^postgres(ql)?:\/\//, 'must be a postgresql:// connection string'),
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
 });
 
 /**
