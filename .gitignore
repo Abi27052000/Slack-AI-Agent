@@ -1,0 +1,16 @@
+# Separate repo (has its own .git) - not tracked by this project
+slack-ai-agent/
+
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
