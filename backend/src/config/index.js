@@ -24,6 +24,10 @@ const config = Object.freeze({
   port: env.PORT,
   logLevel: env.LOG_LEVEL ?? defaultLogLevel[env.NODE_ENV],
   corsOrigins: env.CORS_ORIGIN,
+  database: Object.freeze({
+    url: env.DATABASE_URL,
+    poolMax: env.DATABASE_POOL_MAX,
+  }),
   appName: pkg.name,
   appVersion: pkg.version,
 });
