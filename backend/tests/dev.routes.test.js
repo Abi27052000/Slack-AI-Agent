@@ -6,7 +6,12 @@ vi.mock('../src/services/member.service.js', () => ({
   upsertMemberFromSlack: vi.fn(async (profile) => ({ id: 'member-1', ...profile })),
 }));
 
+vi.mock('../src/services/research.service.js', () => ({
+  researchMember: vi.fn(async () => ({ sources: [], skipped: [], errors: [], durationMs: 1 })),
+}));
+
 const { default: app } = await import('../src/app.js');
+const { researchMember } = await import('../src/services/research.service.js');
 const { upsertMemberFromSlack } = await import('../src/services/member.service.js');
 const { slackUser } = await import('./slack/fixtures.js');
 
@@ -61,5 +66,29 @@ describe('POST /api/dev/slack/events', () => {
   it('rejects unknown event types', async () => {
     const res = await request(app).post('/api/dev/slack/events').send({ type: 'message' });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/dev/research', () => {
+  it('runs research for the given member', async () => {
+    const res = await request(app)
+      .post('/api/dev/research')
+      .send({ name: 'Jane Doe', email: 'jane@acme.io' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ sources: [], skipped: [], errors: [], durationMs: 1 });
+    expect(researchMember).toHaveBeenCalledWith({ name: 'Jane Doe', email: 'jane@acme.io' });
+  });
+
+  it('requires a name or email', async () => {
+    const res = await request(app).post('/api/dev/research').send({});
+    expect(res.status).toBe(400);
+    expect(researchMember).not.toHaveBeenCalled();
+  });
+
+  it('validates the email format', async () => {
+    const res = await request(app).post('/api/dev/research').send({ email: 'not-an-email' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.details[0].path).toBe('email');
   });
 });

@@ -32,6 +32,12 @@ export const envSchema = z.object({
   SLACK_WATCH_CHANNEL_IDS: commaSeparatedList.default([]),
   // Private channel the analysis reports are posted to (used from step 6).
   SLACK_REPORT_CHANNEL_ID: z.string().optional(),
+
+  // Research
+  // Optional: raises the GitHub API limit from 60 to 5,000 requests/hour (no scopes needed).
+  GITHUB_TOKEN: z.string().optional(),
+  // Per-provider time budget; a slow provider is dropped, never blocks the analysis.
+  RESEARCH_TIMEOUT_MS: z.coerce.number().int().min(500).max(60_000).default(8_000),
 }).superRefine((env, ctx) => {
   const hasBot = Boolean(env.SLACK_BOT_TOKEN);
   const hasApp = Boolean(env.SLACK_APP_TOKEN);

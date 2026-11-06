@@ -36,6 +36,10 @@ const config = Object.freeze({
     watchChannelIds: Object.freeze(env.SLACK_WATCH_CHANNEL_IDS),
     reportChannelId: env.SLACK_REPORT_CHANNEL_ID,
   }),
+  research: Object.freeze({
+    githubToken: env.GITHUB_TOKEN,
+    timeoutMs: env.RESEARCH_TIMEOUT_MS,
+  }),
   appName: pkg.name,
   appVersion: pkg.version,
 });

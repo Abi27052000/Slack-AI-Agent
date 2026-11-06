@@ -12,6 +12,7 @@ describe('parseEnv', () => {
       DATABASE_URL,
       DATABASE_POOL_MAX: 10,
       SLACK_WATCH_CHANNEL_IDS: [],
+      RESEARCH_TIMEOUT_MS: 8000,
     });
   });
 
