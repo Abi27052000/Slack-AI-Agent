@@ -53,6 +53,14 @@ export const envSchema = z.object({
   COMPANY_DESCRIPTION: z.string().optional(),
   // Who is a great fit, e.g. "Engineering leaders at 50-500 person B2B SaaS companies"
   IDEAL_CUSTOMER_PROFILE: z.string().optional(),
+
+  // Pipeline
+  // A member analysed within this many days is not re-analysed on their next join event.
+  REANALYZE_COOLDOWN_DAYS: z.coerce.number().int().min(0).max(365).default(30),
+  // How many members are researched/analysed at the same time (protects API rate limits).
+  PIPELINE_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(2),
+  // Admin dashboard base URL; when set, Slack reports link to the analysis there.
+  DASHBOARD_URL: z.url().optional(),
 }).superRefine((env, ctx) => {
   if (env.NODE_ENV === 'production' && !env.GEMINI_API_KEY) {
     ctx.addIssue({

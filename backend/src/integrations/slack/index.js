@@ -4,17 +4,23 @@ import config from '../../config/index.js';
 import logger from '../../lib/logger.js';
 import { AppError } from '../../lib/errors.js';
 import { upsertMemberFromSlack } from '../../services/member.service.js';
+import { enqueueMemberAnalysis } from '../../services/pipeline.service.js';
 import { fetchUserProfile } from './client.js';
 import { createEventHandlers } from './events.js';
+import {
+  getBotUserId,
+  getSlackApp,
+  getSlackClient,
+  isSlackConnected,
+  setConnectionState,
+  setSlackApp,
+} from './connection.js';
 
 const { App, SocketModeReceiver, LogLevel } = bolt;
 
 const log = logger.child({ module: 'slack' });
 
-let app = null;
-let botUserId = null;
-/** 'disabled' | 'connecting' | 'connected' | 'reconnecting' | 'disconnected' */
-let connectionState = 'disabled';
+export { isSlackConnected };
 
 /** Adapts our pino logger to Bolt's Logger interface. */
 function createBoltLogger() {
@@ -37,17 +43,19 @@ function createBoltLogger() {
 export const slackEventHandlers = createEventHandlers({
   upsertMember: upsertMemberFromSlack,
   fetchUserProfile: async (userId) => {
-    if (!app) {
+    const client = getSlackClient();
+    if (!client) {
       throw new AppError(
         503,
         'Slack is not configured, so users.info is unavailable. Simulate a team_join event with a full user object instead.',
         'SLACK_DISABLED',
       );
     }
-    return fetchUserProfile(app.client, userId);
+    return fetchUserProfile(client, userId);
   },
   watchChannelIds: config.slack.watchChannelIds,
-  getBotUserId: () => botUserId,
+  getBotUserId,
+  onMemberJoined: enqueueMemberAnalysis,
   logger: log,
 });
 
@@ -78,7 +86,7 @@ export async function startSlack() {
 
   for (const state of ['connecting', 'connected', 'reconnecting', 'disconnected']) {
     receiver.client.on(state, () => {
-      connectionState = state;
+      setConnectionState(state);
       if (state === 'connected') log.info('Socket Mode connected');
       if (state === 'reconnecting' || state === 'disconnected') log.warn(`Socket Mode ${state}`);
     });
@@ -86,11 +94,13 @@ export async function startSlack() {
 
   // deferInitialization: Bolt otherwise verifies the token in a floating promise inside the
   // constructor (an unhandled rejection on bad tokens); app.init() below awaits it instead.
-  app = new App({
+  const app = new App({
     token: config.slack.botToken,
     receiver,
     logger: boltLogger,
     deferInitialization: true,
+    // The default policy retries for ~30 minutes, which would hold a pipeline slot hostage.
+    clientOptions: { retryConfig: { retries: 3, factor: 2, minTimeout: 1_000 } },
   });
 
   app.event('team_join', safely('team_join', slackEventHandlers.onTeamJoin));
@@ -103,16 +113,18 @@ export async function startSlack() {
     await app.init();
     auth = await app.client.auth.test();
   } catch (err) {
-    app = null;
     const cause = err.original ?? err;
     const code = cause.data?.error ?? cause.code ?? cause.message;
     throw new Error(`Slack authentication failed (${code}). Check SLACK_BOT_TOKEN.`, { cause: err });
   }
-  botUserId = auth.user_id;
+  setSlackApp(app, auth.user_id);
   log.info(`Authenticated as @${auth.user} in workspace "${auth.team}"`);
 
   if (config.slack.watchChannelIds.length === 0) {
     log.info('SLACK_WATCH_CHANNEL_IDS is empty: reacting to team_join events only');
+  }
+  if (!config.slack.reportChannelId) {
+    log.warn('SLACK_REPORT_CHANNEL_ID is not set: analyses will be stored but not posted');
   }
 
   await app.start();
@@ -120,13 +132,8 @@ export async function startSlack() {
 }
 
 export async function stopSlack() {
+  const app = getSlackApp();
   if (!app) return;
   await app.stop();
-  app = null;
-  connectionState = 'disconnected';
-}
-
-/** Readiness probe for the Socket Mode connection. */
-export function isSlackConnected() {
-  return connectionState === 'connected';
+  setSlackApp(null);
 }

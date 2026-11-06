@@ -59,9 +59,13 @@ model MemberAnalysis {
   status   AnalysisStatus @default(PENDING)
   /// What triggered this run, e.g. "team_join", "member_joined_channel", "manual", "dev".
   trigger  String         @default("team_join")
+  /// For member_joined_channel triggers: the channel the member joined.
+  triggerChannelId String? @map("trigger_channel_id")
 
   fitScore        Int?     @map("fit_score")
   tier            FitTier?
+  /// How much evidence backs the score: "high" | "medium" | "low" (from the model).
+  confidence      String?
   summary         String?
   insights        Json?    @default("[]")
   recommendations Json?    @default("[]")
@@ -73,7 +77,12 @@ model MemberAnalysis {
   promptVersion String? @map("prompt_version")
   error         String?
   attempts      Int     @default(0)
+  /// LLM token usage { promptTokens, outputTokens, thinkingTokens, totalTokens } for cost tracking.
+  usage         Json?
+  /// Wall-clock time of research + analysis, in ms.
+  durationMs    Int?    @map("duration_ms")
 
+  /// Where the report was posted (channel + message timestamp identify the Slack message).
   slackChannelId String?   @map("slack_channel_id")
   slackMessageTs String?   @map("slack_message_ts")
   postedAt       DateTime? @map("posted_at")

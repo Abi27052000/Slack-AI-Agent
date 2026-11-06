@@ -14,9 +14,34 @@ vi.mock('../src/services/analysis.service.js', () => ({
   analyzeMember: vi.fn(async () => ({ fitScore: 70, tier: 'WARM', isFallback: false })),
 }));
 
+vi.mock('../src/services/pipeline.service.js', () => ({
+  enqueueMemberAnalysis: vi.fn(async () => ({ status: 'queued', analysisId: 'analysis-1' })),
+}));
+
+vi.mock('../src/services/analysis.repository.js', () => ({
+  getAnalysisWithMember: vi.fn(async (id) =>
+    id === 'analysis-1'
+      ? {
+          id,
+          trigger: 'team_join',
+          fitScore: 82,
+          tier: 'HOT',
+          confidence: 'high',
+          summary: 'Great fit',
+          insights: ['Senior'],
+          recommendations: ['Reach out'],
+          isFallback: false,
+          researchData: { sources: [] },
+          member: { name: 'Jane Doe', slackUserId: 'U1', email: 'jane@acme.io', title: 'CTO' },
+        }
+      : null,
+  ),
+}));
+
 const { default: app } = await import('../src/app.js');
 const { researchMember } = await import('../src/services/research.service.js');
 const { analyzeMember } = await import('../src/services/analysis.service.js');
+const { enqueueMemberAnalysis } = await import('../src/services/pipeline.service.js');
 const { upsertMemberFromSlack } = await import('../src/services/member.service.js');
 const { slackUser } = await import('./slack/fixtures.js');
 
@@ -33,10 +58,18 @@ describe('POST /api/dev/slack/events', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       event: 'team_join',
-      result: { status: 'processed', memberId: 'member-1', trigger: 'team_join' },
+      result: {
+        status: 'processed',
+        memberId: 'member-1',
+        trigger: 'team_join',
+        analysis: { status: 'queued', analysisId: 'analysis-1' },
+      },
     });
     expect(upsertMemberFromSlack).toHaveBeenCalledWith(
       expect.objectContaining({ slackUserId: 'U012ABC', email: 'jane@acme.io' }),
+    );
+    expect(enqueueMemberAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({ member: expect.objectContaining({ id: 'member-1' }), trigger: 'team_join' }),
     );
   });
 
@@ -131,5 +164,25 @@ describe('POST /api/dev/analyze', () => {
   it('requires a name or email', async () => {
     const res = await request(app).post('/api/dev/analyze').send({ title: 'CTO' });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /api/dev/analyses/:id', () => {
+  it('returns the analysis with its Slack report and a Block Kit Builder link', async () => {
+    const res = await request(app).get('/api/dev/analyses/analysis-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.analysis).toMatchObject({ id: 'analysis-1', fitScore: 82 });
+    expect(res.body.member).toMatchObject({ name: 'Jane Doe' });
+    expect(res.body.report.text).toBe('New member analysis: Jane Doe (82/100)');
+    expect(res.body.blockKitBuilderUrl).toMatch(/^https:\/\/app\.slack\.com\/block-kit-builder#/);
+
+    const payload = JSON.parse(decodeURIComponent(res.body.blockKitBuilderUrl.split('#')[1]));
+    expect(payload.blocks[0].type).toBe('header');
+  });
+
+  it('404s for unknown analyses', async () => {
+    const res = await request(app).get('/api/dev/analyses/nope');
+    expect(res.status).toBe(404);
   });
 });
