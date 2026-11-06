@@ -8,16 +8,16 @@ export const IN_FLIGHT_STATUSES = ['PENDING', 'RESEARCHING', 'ANALYZING'];
  *  - a successful (non-fallback) one inside the cooldown window, or
  *  - one still in flight (e.g. team_join and member_joined_channel arriving seconds apart).
  * Failed and fallback analyses never block, so they get retried on the next join.
+ * Pass `cooldownSince: null` to ignore the cooldown (manual re-analysis) and only check in-flight.
  */
 export function findBlockingAnalysis(memberId, { cooldownSince, inFlightSince }) {
+  const conditions = [{ status: { in: IN_FLIGHT_STATUSES }, createdAt: { gte: inFlightSince } }];
+  if (cooldownSince) {
+    conditions.push({ status: { in: ['ANALYZED', 'POSTED'] }, isFallback: false, createdAt: { gte: cooldownSince } });
+  }
+
   return prisma.memberAnalysis.findFirst({
-    where: {
-      memberId,
-      OR: [
-        { status: { in: ['ANALYZED', 'POSTED'] }, isFallback: false, createdAt: { gte: cooldownSince } },
-        { status: { in: IN_FLIGHT_STATUSES }, createdAt: { gte: inFlightSince } },
-      ],
-    },
+    where: { memberId, OR: conditions },
     orderBy: { createdAt: 'desc' },
     select: { id: true, status: true, createdAt: true },
   });

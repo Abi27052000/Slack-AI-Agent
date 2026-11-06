@@ -41,6 +41,7 @@ describe('parseEnv', () => {
       SLACK_APP_TOKEN: 'xapp-1',
       GEMINI_API_KEY: 'key',
       GEMINI_MAX_RETRIES: '1',
+      ADMIN_API_KEY: 'x'.repeat(32),
     });
 
     expect(env).toMatchObject({
@@ -99,7 +100,7 @@ describe('parseEnv', () => {
         /Slack tokens are required in production/,
       );
       expect(() =>
-        parseEnv({ DATABASE_URL, NODE_ENV: 'production', GEMINI_API_KEY: 'key', ...tokens }),
+        parseEnv({ DATABASE_URL, NODE_ENV: 'production', GEMINI_API_KEY: 'key', ADMIN_API_KEY: 'x'.repeat(32), ...tokens }),
       ).not.toThrow();
     });
   });
@@ -118,6 +119,22 @@ describe('parseEnv', () => {
     it('bounds retries and timeouts', () => {
       expect(() => parseEnv({ DATABASE_URL, GEMINI_MAX_RETRIES: '50' })).toThrow(/GEMINI_MAX_RETRIES/);
       expect(() => parseEnv({ DATABASE_URL, GEMINI_TIMEOUT_MS: '10' })).toThrow(/GEMINI_TIMEOUT_MS/);
+    });
+  });
+
+  describe('Admin API key', () => {
+    it('is optional in development', () => {
+      expect(parseEnv({ DATABASE_URL }).ADMIN_API_KEY).toBeUndefined();
+    });
+
+    it('must be long enough', () => {
+      expect(() => parseEnv({ DATABASE_URL, ADMIN_API_KEY: 'short' })).toThrow(/ADMIN_API_KEY: must be at least 24 characters/);
+    });
+
+    it('is required in production', () => {
+      expect(() =>
+        parseEnv({ DATABASE_URL, NODE_ENV: 'production', SLACK_BOT_TOKEN: 'xoxb-1', SLACK_APP_TOKEN: 'xapp-1', GEMINI_API_KEY: 'k' }),
+      ).toThrow(/ADMIN_API_KEY is required in production/);
     });
   });
 

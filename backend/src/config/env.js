@@ -61,7 +61,19 @@ export const envSchema = z.object({
   PIPELINE_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(2),
   // Admin dashboard base URL; when set, Slack reports link to the analysis there.
   DASHBOARD_URL: z.url().optional(),
+
+  // Admin API (dashboard). Bearer token for /api/analyses, /api/stats, ...
+  // Optional in development (the API is then open, with a warning). Generate: openssl rand -hex 32
+  ADMIN_API_KEY: z.string().min(24, 'must be at least 24 characters (generate one with: openssl rand -hex 32)').optional(),
 }).superRefine((env, ctx) => {
+  if (env.NODE_ENV === 'production' && !env.ADMIN_API_KEY) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['ADMIN_API_KEY'],
+      message: 'ADMIN_API_KEY is required in production',
+    });
+  }
+
   if (env.NODE_ENV === 'production' && !env.GEMINI_API_KEY) {
     ctx.addIssue({
       code: 'custom',

@@ -39,6 +39,10 @@ async function start() {
 
   await checkGemini();
 
+  if (!config.admin.apiKey) {
+    logger.warn('ADMIN_API_KEY not set: the dashboard API (/api/analyses, /api/stats) is open to anyone who can reach this server');
+  }
+
   const slackStarted = await startSlack();
   if (slackStarted) {
     registerReadinessCheck('slack', isSlackConnected);

@@ -52,6 +52,9 @@ const config = Object.freeze({
     concurrency: env.PIPELINE_CONCURRENCY,
     dashboardUrl: env.DASHBOARD_URL?.replace(/\/+$/, ''),
   }),
+  admin: Object.freeze({
+    apiKey: env.ADMIN_API_KEY,
+  }),
   company: Object.freeze({
     name: env.COMPANY_NAME,
     product: env.COMPANY_PRODUCT,

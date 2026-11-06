@@ -8,6 +8,7 @@ export default defineConfig({
       NODE_ENV: 'test',
       // Unit tests never open a connection; a placeholder satisfies config validation.
       DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+      ADMIN_API_KEY: 'test-admin-key-0123456789abcdef',
     },
   },
 });

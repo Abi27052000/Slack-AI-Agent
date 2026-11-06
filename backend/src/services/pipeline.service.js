@@ -122,23 +122,24 @@ export function createPipeline({
    * Hands a member to the pipeline. Resolves quickly (once the PENDING record exists) so Slack
    * events are acknowledged within Slack's 3-second limit; the actual work runs in the queue.
    *
+   * `force` (manual re-analysis) ignores the cooldown, but never starts a second analysis while
+   * one is already running for the member.
+   *
    * @returns {Promise<{status: 'queued', analysisId} | {status: 'skipped', reason, analysisId}>}
    */
   async function enqueue({ member, trigger, channelId = null, force = false }) {
     const decision = await serialised(async () => {
-      if (!force) {
-        const current = now().getTime();
-        const blocking = await repo.findBlockingAnalysis(member.id, {
-          cooldownSince: new Date(current - cooldownDays * DAY_MS),
-          inFlightSince: new Date(current - IN_FLIGHT_STALE_MS),
-        });
-        if (blocking) {
-          return {
-            status: 'skipped',
-            reason: IN_FLIGHT_STATUSES.includes(blocking.status) ? 'analysis_in_progress' : 'recently_analyzed',
-            analysisId: blocking.id,
-          };
-        }
+      const current = now().getTime();
+      const blocking = await repo.findBlockingAnalysis(member.id, {
+        cooldownSince: force ? null : new Date(current - cooldownDays * DAY_MS),
+        inFlightSince: new Date(current - IN_FLIGHT_STALE_MS),
+      });
+      if (blocking) {
+        return {
+          status: 'skipped',
+          reason: IN_FLIGHT_STATUSES.includes(blocking.status) ? 'analysis_in_progress' : 'recently_analyzed',
+          analysisId: blocking.id,
+        };
       }
       const created = await repo.createPendingAnalysis({ memberId: member.id, trigger, triggerChannelId: channelId });
       return { status: 'queued', analysisId: created.id };
