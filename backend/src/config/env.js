@@ -38,7 +38,30 @@ export const envSchema = z.object({
   GITHUB_TOKEN: z.string().optional(),
   // Per-provider time budget; a slow provider is dropped, never blocks the analysis.
   RESEARCH_TIMEOUT_MS: z.coerce.number().int().min(500).max(60_000).default(8_000),
+
+  // Gemini (member-fit analysis). Optional outside production: without a key every analysis is
+  // stored as a fallback that needs manual review.
+  GEMINI_API_KEY: z.string().optional(),
+  // Stable model IDs: https://ai.google.dev/gemini-api/docs/models
+  GEMINI_MODEL: z.string().default('gemini-3.6-flash'),
+  GEMINI_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+  GEMINI_MAX_RETRIES: z.coerce.number().int().min(0).max(6).default(3),
+
+  // Company context used in the analysis prompt
+  COMPANY_NAME: z.string().default('Your Company'),
+  COMPANY_PRODUCT: z.string().default('Your Product'),
+  COMPANY_DESCRIPTION: z.string().optional(),
+  // Who is a great fit, e.g. "Engineering leaders at 50-500 person B2B SaaS companies"
+  IDEAL_CUSTOMER_PROFILE: z.string().optional(),
 }).superRefine((env, ctx) => {
+  if (env.NODE_ENV === 'production' && !env.GEMINI_API_KEY) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['GEMINI_API_KEY'],
+      message: 'GEMINI_API_KEY is required in production',
+    });
+  }
+
   const hasBot = Boolean(env.SLACK_BOT_TOKEN);
   const hasApp = Boolean(env.SLACK_APP_TOKEN);
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AppError } from '../lib/errors.js';
 import { slackEventHandlers } from '../integrations/slack/index.js';
 import { researchMember } from '../services/research.service.js';
+import { analyzeMember } from '../services/analysis.service.js';
 
 function parseOrThrow(schema, body, message) {
   const parsed = schema.safeParse(body);
@@ -56,4 +57,32 @@ const researchSchema = z
 export const runResearch = async (req, res) => {
   const member = parseOrThrow(researchSchema, req.body, 'Invalid research request');
   res.status(200).json(await researchMember(member));
+};
+
+const analyzeSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    email: z.email().optional(),
+    title: z.string().trim().max(200).optional(),
+    timezone: z.string().trim().max(100).optional(),
+    // Supply research to skip the live lookup (handy for repeatable prompt experiments).
+    research: z
+      .object({
+        sources: z.array(z.looseObject({ provider: z.string() })).default([]),
+        skipped: z.array(z.looseObject({})).default([]),
+        errors: z.array(z.looseObject({})).default([]),
+      })
+      .optional(),
+  })
+  .refine((body) => body.name || body.email, { message: 'Provide a name and/or email' });
+
+/**
+ * POST /api/dev/analyze: research (unless provided) + Gemini analysis for a made-up member.
+ * Nothing is stored or posted. Returns { research, analysis }.
+ */
+export const runAnalysis = async (req, res) => {
+  const { research: providedResearch, ...member } = parseOrThrow(analyzeSchema, req.body, 'Invalid analysis request');
+  const research = providedResearch ?? (await researchMember(member));
+  const analysis = await analyzeMember(member, research);
+  res.status(200).json({ research, analysis });
 };

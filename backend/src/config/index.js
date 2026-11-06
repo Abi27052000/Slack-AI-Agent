@@ -40,6 +40,19 @@ const config = Object.freeze({
     githubToken: env.GITHUB_TOKEN,
     timeoutMs: env.RESEARCH_TIMEOUT_MS,
   }),
+  gemini: Object.freeze({
+    enabled: Boolean(env.GEMINI_API_KEY),
+    apiKey: env.GEMINI_API_KEY,
+    model: env.GEMINI_MODEL,
+    timeoutMs: env.GEMINI_TIMEOUT_MS,
+    maxRetries: env.GEMINI_MAX_RETRIES,
+  }),
+  company: Object.freeze({
+    name: env.COMPANY_NAME,
+    product: env.COMPANY_PRODUCT,
+    description: env.COMPANY_DESCRIPTION,
+    idealCustomerProfile: env.IDEAL_CUSTOMER_PROFILE,
+  }),
   appName: pkg.name,
   appVersion: pkg.version,
 });
